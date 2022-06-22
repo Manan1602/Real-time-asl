@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 #from cnn import Model, DataGatherer
 from gui import GUI
+from time import sleep
 from tkinter import *
 from torchvision import transforms
 from PIL import ImageTk, Image
@@ -74,8 +75,11 @@ def get_char(input):
     img_t = img_t.unsqueeze(0)
     img_t = img_t.to(device)
     output = model(img_t)
-    pred=int(torch.max(output.cpu().data, 1)[1].numpy())
-    return classes[pred], pred
+    probs = torch.nn.functional.softmax(output, dim=1)
+    conf,pred=torch.max(probs, 1)
+    conf=conf.detach().numpy()[0]
+    pred=pred.detach().numpy()[0]
+    return classes[pred], conf
     #return Model.predict(classes, classifier, gesture)
 
 
@@ -134,11 +138,11 @@ def frame_video_stream(names, curr_char, prev_char, word, sentence, *args):
             # gray = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2GRAY)
             # gray = DataGatherer().edge_detection(gray)
 
-            curr_char, pred = get_char(image)
+            curr_char, pred = get_char(cropped_img)
             print(curr_char)
             print(pred)
             char = cv2.putText(full_img, curr_char, (center[0]-135, center[1]-135), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-            char_prob = cv2.putText(full_img, '{0:.2f}'.format(np.max(pred)), (center[0]+60, center[1]-135), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+            char_prob = cv2.putText(full_img, '{0:.2f}'.format(pred), (center[0]+60, center[1]-135), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
             update_frame(full_img, kwargs['vid_label'])
 
@@ -153,7 +157,7 @@ def frame_video_stream(names, curr_char, prev_char, word, sentence, *args):
             #as the program catches the motion of the user's hand when the user changes the gesture(the motion between the gestures)
             #and the program thinks
             #it's a gesture and tries to match it with some letter but with low probability
-            if (curr_char != prev_char) and (np.max(pred) > threshold):
+            if (curr_char != prev_char) and (pred > threshold):
                 #the below print statement is related to the formatter
                 #print(pred)
                 temp = AddCharToWord(word, curr_char)
